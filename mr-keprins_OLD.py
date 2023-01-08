@@ -1,5 +1,6 @@
 # Mr Keprins Discord Bot
-
+import math
+import os
 # Version: 2.0
 # Originally created: 23 September 2021, 4:31:55 PM
 # Creator: Cohen Beveridge
@@ -25,7 +26,7 @@ from json import loads
 from nltk.corpus import cmudict
 from nltk import download as nltk_download
 from quote import quote
-from randfacts import get_fact
+import randfacts
 from github import Github
 from forex_python.bitcoin import BtcConverter
 from weathercom import getCityWeatherDetails
@@ -119,9 +120,13 @@ async def alert(text, critical=False):
         await client.get_channel(964143206860197908).send("@&938428589009944616\n" + text)
 
 
-def one_button_view(button):
+def get_button_view(button):
     view = View()
-    view.add_item(button)
+    if isinstance(button, list):
+        for x in button:
+            view.add_item(x)
+    else:
+        view.add_item(button)
     return view
 
 
@@ -186,7 +191,7 @@ async def spam(message):
         times_to_spam = message.content[5:message.content.find(' ', 5)]
         word = message.content[message.content.find(' ', 5) + 1:]
         if "spam" not in message.channel.name:
-            await message.channel.send("I'll only spam in the designated spam channel")
+            await message.reply("You can only spam in a designated spam channel")
         elif not times_to_spam.isdigit():
             await message.channel.send('Invalid Number. Syntax is `kp spam <number> <word>`')
         elif int(times_to_spam) > 100:
@@ -250,14 +255,15 @@ def get_joke():
 
 async def joke(message):
     if message.content.lower() == "joke":
-        button = Button(label="New Joke", style=discord.ButtonStyle.green, custom_id="new")
+        # TODO: only let the button work for the user who said "kp joke"
+        button = Button(label="New Joke", style=discord.ButtonStyle.green, custom_id="BUBKIS!!")
 
         async def button_callback(interaction):
-            await interaction.response.edit_message(content=get_joke(), view=one_button_view(button))
+            await interaction.response.edit_message(content=get_joke(), view=get_button_view(button))
 
         button.callback = button_callback
 
-        await message.channel.send(get_joke(), view=one_button_view(button))
+        await message.channel.send(get_joke(), view=get_button_view(button))
 
 
 async def trivia_q(message):
@@ -329,14 +335,15 @@ def meme_embed():
 
 async def get_meme(message):
     if message.content.lower() == 'meme':
+        # TODO: only let the button work for the user who said "kp meme"
         button = Button(label="New Meme", style=discord.ButtonStyle.green, custom_id="new")
 
         async def button_callback(interaction):
             try:
-                await interaction.response.edit_message(embed=meme_embed(), view=one_button_view(button))
+                await interaction.response.edit_message(embed=meme_embed(), view=get_button_view(button))
             except discord.errors.NotFound:
                 try:
-                    await interaction.response.edit_message(embed=meme_embed(), view=one_button_view(button))
+                    await interaction.response.edit_message(embed=meme_embed(), view=get_button_view(button))
                 except discord.errors.NotFound:
                     pass
             data["users"][str(message.author.id)][5] = str(int(data["users"][str(message.author.id)][5]) + 1)
@@ -344,7 +351,7 @@ async def get_meme(message):
 
         button.callback = button_callback
 
-        await message.channel.send(embed=meme_embed(), view=one_button_view(button))
+        await message.channel.send(embed=meme_embed(), view=get_button_view(button))
 
 
 async def book_quote(message):
@@ -390,9 +397,9 @@ async def special_events(message):
 
 async def fact(message):
     if message.content.lower() == 'fact':
-        await message.channel.send(get_fact(False))
+        await message.channel.send(randfacts.get_fact(False))
     if message.content.lower() == 'unsafe fact':
-        await message.channel.send(get_fact(False, True))
+        await message.channel.send(randfacts.get_fact(False, True))
 
 
 async def update_points(message):
@@ -648,7 +655,7 @@ async def manage_points(message):
                 this_points = str(points_sorted[iteration])
                 if itr >= start:
                     embed.description += \
-                        str(itr + 1) + ") `" + this_points + "` - " + this_name + "\n"
+                        str(itr + 1) + ") `" + this_points + "` - " + this_name.replace("_", "\_") + "\n"
                 if itr == end:
                     break
         if embed.description == '':
@@ -698,7 +705,7 @@ async def give_points(user_id, amount, reason):
 
 
 async def gn(message):
-    if message.content.lower() == 'gn' or message.content.lower() == 'goodnight':
+    if message.content.lower() in ['gn', 'goodnight']:
         hour = int(now().strftime("%H"))
         if 20 > hour > 3:
             await message.reply("It's too early", delete_after=5)
@@ -750,7 +757,7 @@ async def hangman(message):
     failures = data["user_temp"][message.author.id]["failures"]
     guessed = data["user_temp"][message.author.id]["guessed"]
     hang_msg = data["user_temp"][message.author.id]["hang_msg"]
-    if message.content.lower() == 'hangman' and hang_word is None:
+    if message.content.lower() == 'hangman':
         hang_word = random.choice(get("https://www.mit.edu/~ecprice/wordlist.10000").content.splitlines())\
             .decode("utf-8").lower()
         guess_area = "_" + " _" * (len(hang_word) - 1)
@@ -766,7 +773,7 @@ async def hangman(message):
             response = message_content.lower()
             if len(response) == 1 and response.isalpha():
                 if response in guessed:
-                    await hang_msg.edit("You already guessed that letter!\n" + hang_msg.content)
+                    await hang_msg.edit(content="You already guessed that letter!\n" + hang_msg.content)
                 else:
                     guessed.append(response)
                     if response in hang_word:
@@ -774,18 +781,34 @@ async def hangman(message):
                             if hang_word[char] == response:
                                 hang_answer = hang_answer[:char] + hang_word[char].upper() + hang_answer[char + 1:]
                     else:
-                        await hang_msg.edit('No "' + response + '"s in the word!\n' + hang_msg.content)
+                        hang_msg.content = 'No "' + response + '"s in the word!\n' +\
+                                           hang_msg.content[hang_msg.content.find("```"):]
+                        await hang_msg.edit(content=hang_msg.content)
                         failures += 1
                         if failures == 7:
-                            await hang_msg.edit("Last chance!")
+                            hang_msg.content = "Last chance!" + hang_msg.content[hang_msg.content.find("```"):]
+                            await hang_msg.edit(content=hang_msg.content)
                         if failures == 8:
-                            await hang_msg.edit("**You FAILED!**\nThe answer was: " + hang_word + "\n" + hang_msg.content)
+                            await hang_msg.edit(content="**You FAILED!**\nThe answer was: " + hang_word + "\n"
+                                                + hang_msg.content[hang_msg.content.find('```'):])
                             hang_word = None
                     if hang_answer is not None:
                         if hang_word == hang_answer.lower():
-                            await hang_msg.edit("🥳 **You guessed the word!** 🥳\n__**" + hang_word.upper() +
-                                                       "**__\n" + message.author.mention + ", you get 20 points!\n"
-                                                + hang_msg.content)
+                            display = "🥳 **You guessed the word!** 🥳\n__**" + hang_word.upper() + \
+                                                "**__\n" + message.author.mention + ", you get 20 points!\n"
+                            display_answer = hang_answer[0]
+                            for char in hang_answer[1:]:
+                                display_answer += " " + char
+                            display += '```\n' + display_images[failures][:15] + "          " + display_answer + \
+                                       display_images[failures][15:31] + "          USED: "
+                            used = ""
+                            for item in guessed:
+                                if item not in hang_word:
+                                    used += item.upper() + ', '
+                            used = used[:-2]
+                            display += used + display_images[failures][31:] + '\n```'
+
+                            await hang_msg.edit(content=display)
                             await give_points(str(message.author.id), 20, "HANGMAN")
                             hang_word = None
                         else:
@@ -793,15 +816,21 @@ async def hangman(message):
                             for char in hang_answer[1:]:
                                 display_answer += " " + char
                             if failures < 8:
-                                display = '```\n' + display_images[failures][:15] + "          " + display_answer +\
-                                          display_images[failures][15:31] + "          USED: "
+                                if hang_msg.content.startswith("```"):
+                                    display = ""
+                                else:
+                                    display = hang_msg.content[:hang_msg.content.find("```")]
+                                display += '```\n' + display_images[failures][:15] + "          " + display_answer +\
+                                           display_images[failures][15:31] + "          USED: "
                                 used = ""
                                 for item in guessed:
                                     if item not in hang_word:
                                         used += item.upper() + ', '
                                 used = used[:-2]
                                 display += used + display_images[failures][31:] + '\n```'
-                                await hang_msg.edit(display)
+                                await hang_msg.edit(content=display)
+                                hang_msg.content = display
+                    await message.delete()
             data["user_temp"][message.author.id]["hang_word"] = hang_word
             data["user_temp"][message.author.id]["hang_answer"] = hang_answer
             data["user_temp"][message.author.id]["failures"] = failures
@@ -810,7 +839,7 @@ async def hangman(message):
 
 
 async def donate(message):
-    if message.content.lower().startswith("donate "):
+    if message.content.lower().startswith("donate"):
         amount = message.content.lower()[7:message.content.find(" ", 7)]
         if not amount.isdigit():
             await message.reply("That's not a valid number! Syntax is `kp donate <number> <user>`")
@@ -819,11 +848,10 @@ async def donate(message):
         if amount <= 0:
             await message.reply("That's not enough to give!")
             return
-        target_user = message.content[message.content.find(" ", 7):]
-        target_user = target_user.strip()
-        target_id = target_user[2:20]
-        if client.get_user(int(target_id)) is None:
-            await message.reply("Mr Keprins has no idea who that user is.")
+        target_user_id = message.content[message.content.find(" ", 7) + 1:]
+        target_user_id = target_user_id[2:-1].replace("!", "", 1)
+        if client.get_user(int(target_user_id)) is None:
+            await message.reply("I have no idea who that user is...")
         if int(data["users"][str(message.author.id)][0]) < 0:
             data["users"][str(message.author.id)][0] = "0"
             await update_points("Reset points to 0 for " + str(message.author) + " because they had negative.")
@@ -835,24 +863,21 @@ async def donate(message):
         if amount > int(data["users"][str(message.author.id)][0]):
             await message.reply("Uh... you can't donate more than you have...")
             return
-        await give_points(target_id, amount, "DONATION received")
+        await give_points(target_user_id, amount, "DONATION received")
         await give_points(message.author.id, 0 - amount, "DONATION given")
         await message.channel.send("Transferred " + str(amount) + " points from " + message.author.mention +
-                                   " to <@!" + str(target_id) + ">")
+                                   " to <@!" + str(target_user_id) + ">")
 
 
 async def gm(message):
-    if message.content.lower() == 'gm' or message.content.lower() == 'good morning':
-        utc_time = datetime.now()
-        hours_added = timedelta(hours=8)
-        our_time = utc_time + hours_added
-        hour = int(our_time.strftime('%H'))
+    if message.content.lower() in ['gm', 'good morning']:
+        hour = int(now().strftime('%H'))
         if hour > 23:
             hour -= 24
         if hour >= 10:
             await message.channel.send("It's too late to say good morning!", delete_after=5)
             return
-        today = our_time.strftime('%Y-%m-%d')
+        today = now().strftime('%Y-%m-%d')
         last_gm = data["users"][str(message.author.id)][2]
         if "," in last_gm:
             last_gm = '0'
@@ -868,18 +893,15 @@ async def gm(message):
 async def update_servers(message):
     new_content = ""
     x = -1
-    for a_server in data["servers"]:
-        if a_server != "":
+    for this_server in data["servers"]:
+        if this_server != "":
             x += 1
-            server_values = data["servers"][a_server]
-            new_content += str(a_server)
-            new_content += ":"
+            server_values = data["servers"][this_server]
+            new_content += str(this_server) + ":"
             string_values = ""
             for value in server_values:
-                string_values += ":"
-                string_values += value
-            new_content += string_values
-            new_content += "\n"
+                string_values += ":" + value
+            new_content += string_values + "\n"
     new_content = new_content[:len(new_content) - 1]
     repository.update_file(repository.get_contents('servers.txt').path, message, new_content,
                            repository.get_contents('servers.txt').sha, branch="main")
@@ -888,18 +910,10 @@ async def update_servers(message):
 
 
 async def server_data(message):
-    server_id = str(message.guild.id)
-    if server_id not in data["servers"]:
-        all_members = message.guild.members
-        members = []
-        bots = []
-        for mem in all_members:
-            if not mem.bot:
-                members.append(mem)
-            else:
-                bots.append(mem)
-        data["servers"][server_id] = ["0", "0", "uncensored", "0", "0", "0", "0", "0", "0", "0"]
-        await update_servers('Add ' + server_id + " (" + message.guild.name + ") to data")
+    guild_id = str(message.guild.id)
+    if guild_id not in data["servers"]:
+        data["servers"][guild_id] = ["0", "0", "uncensored", "0", "0", "0", "0", "0", "0", "0"]
+        await update_servers('Add ' + guild_id + " (" + message.guild.name + ") to data")
 
 
 def add_server_to_temp_data(message):
@@ -929,42 +943,27 @@ async def count_messages(message):
 
 
 async def rate(message):
-    if message.content.lower() == 'server rate' or message.content.lower() == 'message rate':
+    if message.content.lower() in ['server rate', 'message rate']:
         messages = int(float(data["servers"][str(message.guild.id)][0]))
         seconds = int(float(data["servers"][str(message.guild.id)][1]))
         per_minute = messages / (seconds / 60)
         per_hour = messages / (seconds / 3600)
         per_day = messages / (seconds / 86400)
         await message.channel.send(
-            "**Message Rate for " + message.guild.name + "**\n`messages per minute:` `" +
-            str(round(per_minute, 3)) + "`\n`messages per hour:` `" + str(round(per_hour, 3)) +
-            "`\n`messages per day:` `" + str(round(per_day, 3)) + '`')
+            embed=discord.Embed(
+                title="Message Rate for " + message.guild.name,
+                description="`" + str(round(per_minute, 3)) + "` messages per minute\n`" +
+                            str(round(per_hour, 3)) + "` messages per hour\n`" +
+                            str(round(per_day, 3)) + "` messages per day",
+                colour=discord.Colour.teal(),
+                timestamp=datetime.now()
+            )
+        )
 
 
 def monitor(message):
     if "https://streamable.com/whe3ug" in message.content:
         return False
-
-
-async def update_events(message):
-    new_content = ""
-    x = -1
-    for an_event in data["events"]:
-        if an_event != "":
-            x += 1
-            event_values = data["events"][an_event]
-            new_content += str(an_event)
-            new_content += ","
-            string_values = ""
-            for value in event_values:
-                string_values += ","
-                string_values += value
-            new_content += string_values
-            new_content += "\n"
-    new_content = new_content[:len(new_content) - 1]
-    repository.update_file(repository.get_contents('events.txt').path, message, new_content,
-                           repository.get_contents('events.txt').sha, branch="main")
-    await log(message)
 
 
 async def censor(message):
@@ -1011,39 +1010,25 @@ async def test_functions(message):
 
 
 async def feed(message):
-    if message.content.lower()[:5] == "feed ":
+    if message.content.lower().startswith("feed "):
         if bad_word(message):
-            await message.channel.send("That's a bad word! It will not be eaten!")
+            await message.reply("I can't eat that!")
             return
         food = message.content[5:]
         await message.channel.send("Delicious! I love to eat a good tasty " + food)
 
 
-async def dank_memer(message):
-    if message.content.lower() == "hunt":
-        await message.channel.send("You went hunting and you caught a bear. Good job. No one cares.")
-    if message.content.lower() == "fish":
-        await message.channel.send("You went fishing and you caught a fish. Wow. Amazing.")
-    if message.content.lower() == "dig":
-        await message.channel.send("You dug a hole. Incredible.")
-    if message.content.lower() == "search":
-        await message.channel.send("What are you searching for? Actually, no one cares.")
-
-
 async def daily(message):
     if message.content.lower() == "daily":
-        utc_time = datetime.now()
-        hours_added = timedelta(hours=5)
-        our_time = utc_time + hours_added
-        today = our_time.strftime('%Y-%m-%d')
+        today = now().strftime('%Y-%m-%d')
         last_daily = data["users"][str(message.author.id)][4]
         if last_daily == today:
-            await message.channel.send("You already did `daily` today!")
+            await message.reply("You already did `daily` today!")
             return
-        yesterday = (our_time - timedelta(days=1)).strftime('%Y-%m-%d')
+        yesterday = (now() - timedelta(days=1)).strftime('%Y-%m-%d')
         lost_streak = False
         if last_daily != today and last_daily != yesterday and last_daily != 0:
-            await message.channel.send(message.author.mention + "You lost your streak!")
+            await message.channel.send(message.author.mention + " You lost your streak!")
             lost_streak = True
             await log(str(message.author) + " (" + str(message.author.id) + ") lost their Daily Streak")
         data["users"][str(message.author.id)][4] = today
@@ -1063,17 +1048,22 @@ async def list_servers(message):
     phrases = ["server list", "servers list", "list servers", "keprins servers", "mr keprins servers"]
     if message.content.lower() in phrases:
         changed = []
-        for an_id in data["servers"].keys():
-            if client.get_guild(int(an_id)) is None:
-                changed.append(an_id)
+        for this_guild_id in data["servers"].keys():
+            if client.get_guild(int(this_guild_id)) is None:
+                changed.append(this_guild_id)
         if changed:
             for a_id in changed:
                 data["servers"].pop(a_id)
             await update_servers("removed a server: " + str(changed))
-        output = "**Mr Keprins is currently in `" + str(len(data["servers"])) + "` servers:**\n"
+        description = ""
         for str_id in data["servers"]:
-            output += "`" + client.get_guild(int(str_id)).name + "`\n"
-        await message.channel.send(output)
+            description += client.get_guild(int(str_id)).name + "\n"
+        embed = discord.Embed(
+            title="Mr Keprins is currently in " + str(len(data["servers"])) + " servers!",
+            description=description,
+            colour=discord.Colour.brand_green()
+        )
+        await message.channel.send(embed=embed)
 
 
 async def invite_me(message):
@@ -1082,35 +1072,8 @@ async def invite_me(message):
             int_id = int(str_id)
             if client.get_guild(int_id).get_member(761124349809524746) is None:
                 invite = await client.get_channel(client.get_guild(int_id).text_channels[0].id). \
-                    create_invite(max_age=10, max_uses=1)
+                    create_invite(max_age=120, max_uses=1)
                 await client.get_user(761124349809524746).send(f"> {invite}")
-
-
-async def vote(message):
-    if message.content.lower() == "vote results":
-
-        channel_id = 914816028209463297
-        message_id = 918484054595207178
-        vote_name = "Censor Bot Kick Vote"
-
-        msg = await client.get_channel(channel_id).fetch_message(message_id)
-        yes = msg.reactions[0].count
-        no = msg.reactions[1].count
-        if yes > no:
-            percent = str(round(yes / (yes + no) * 100)) + "%"
-            winner = 'Yes'
-        elif no > yes:
-            percent = str(round(no / (yes + no) * 100)) + "%"
-            winner = 'No'
-        else:
-            winner = 'draw'
-            percent = None
-        if winner == 'draw':
-            await message.channel.send(">>> **" + vote_name + ":**\nYes = `" + str(yes) + "`\nNo = `" + str(no) +
-                                       "`\n**Votes are currently equal**")
-        else:
-            await message.channel.send(">>> **" + vote_name + ":**\nYes = `" + str(yes) + "`\nNo = `" + str(no) +
-                                       "`\n**" + winner + " is winning with " + percent + "**")
 
 
 async def manage_user_data_values(user_id):
@@ -1123,7 +1086,7 @@ async def manage_user_data_values(user_id):
         await update_points("Gave " + client.get_user(user_id).name + " 12 value slots")
 
 
-async def XP(message):
+async def give_xp(message):
     global uploaded
     global xp_buffer
     if message.author.id not in xp_buffer:
@@ -1141,45 +1104,38 @@ async def XP(message):
         await update_points("gave xp")
 
 
-def BuildBoard(board_values):
-    a1, a2, a3, b1, b2, b3, c1, c2, c3 = board_values
-    board = [
-        [Button(a1, "a1"),
-         Button(a2, "a2"),
-         Button(a3, "a3")],
-        [Button(b1, "b1"),
-         Button(b2, "b2"),
-         Button(b3, "b3")],
-        [Button(c1, "c1"),
-         Button(c2, "c2"),
-         Button(c3, "c3")],
-    ]
-    return board
+def ox_get_board_view(board_values):
+    blurple = discord.ButtonStyle.blurple
+    all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
+    view = View()
+    for i, button in enumerate(board_values):
+        view.add_item(Button(label=button, style=blurple, row=math.floor(i/3), custom_id=all_squares[i]))
+    return view
 
 
-def ChangeBoard(board, change_pos, change_char):
+def ox_change_board(board, change_pos, change_char):
     new_board = board
     all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
     new_board[all_squares.index(change_pos)] = change_char
     return new_board
 
 
-def WinCheck(board, pos1, pos2, pos3, check):
+def ox_block_win(board, pos1, pos2, pos3, check):
     if board[pos1] == check and board[pos2] == check and board[pos3] == "☐":
-        board[pos3] = "◉"
+        board[pos3] = "O"
         return board
     elif board[pos1] == check and board[pos2] == "☐" and board[pos3] == check:
-        board[pos2] = "◉"
+        board[pos2] = "O"
         return board
     elif board[pos1] == "☐" and board[pos2] == check and board[pos3] == check:
-        board[pos1] = "◉"
+        board[pos1] = "O"
         return board
     else:
         # print('returning None w/' + str(pos1) + str(pos2) + str(pos3))
         return None
 
 
-def HasWon(board, xo):
+def ox_has_won(board, xo):
     return board[0] == xo and board[1] == xo and board[2] == xo \
            or board[3] == xo and board[4] == xo and board[5] == xo \
            or board[6] == xo and board[7] == xo and board[8] == xo \
@@ -1190,297 +1146,258 @@ def HasWon(board, xo):
            or board[2] == xo and board[4] == xo and board[6] == xo
 
 
-def Turn(board):
-    if board.count_to("✚") > board.count_to("◉"):
+def ox_turn(board):
+    if board.count_to("X") > board.count_to("O"):
         turn = 2
-        play_symbol = "◉"
-    elif board.count_to("✚") == board.count_to("◉"):
+        play_symbol = "O"
+    elif board.count_to("X") == board.count_to("O"):
         turn = 1
-        play_symbol = "✚"
+        play_symbol = "X"
     else:
         turn = None
         play_symbol = None
     return turn, play_symbol
 
 
-async def NoughtsAndCrosses(message):
+async def noughts_and_crosses(message):
     acceptable = ["o&x", "0&x", "x&o", "x&0", "o+x", "0+x", "x+o", "x+0", "onx"]
     if message.content.lower() in acceptable:
-        all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
         board = ["☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐"]
-        output = await message.channel.send("Noughts and Crosses", components=BuildBoard(board))
-        finished_game = False
-        while not finished_game:
-            def check(res):
-                return res.message == output and res.author == message.author
+        output = await message.channel.send("Noughts and Crosses")
+        await ox_secondary(message, board, output)
+    elif message.content.lower()[:3] in acceptable and message.content[3] == " ":
+        opponent = message.content[message.content.find(" ") + 1:message.content.find(" ", message.content.find(" ") + 1)]
+        bet = message.content[message.content.find(" ", message.content.find(" ") + 1):]
+        if bet.strip() == "":
+            bet = 0
+        elif bet == "all":
+            bet = int(data["users"][str(message.author.id)][0])
+        elif not bet.strip().isdigit():
+            await message.reply("Your bet needs to be an integer\nSyntax for this command is `kp onx @user <bet>`")
+            return
+        else:
+            bet = int(bet)
+        opponent = int(opponent[2:-1].replace("!", "", 1))
+        if message.guild.get_member(opponent) is None:
+            await message.reply("Your opponent needs to exist and be in this server")
+            return
+        if bet > int(data["users"][str(message.author.id)][0]):
+            await message.reply("You can't bet more points than you have!")
+            return
+        if bet > int(data["users"][str(opponent)][0]):
+            await message.reply("You can't bet more points than your opponent has!")
+            return
+        if bet < 0:
+            await message.reply("You can't bet negative...")
+            return
 
-            interaction = await client.wait_for("button_click", check=check)
+        accept_button = Button(label="Accept", style=discord.ButtonStyle.grey, custom_id="accept")
+        decline_button = Button(label="Decline", style=discord.ButtonStyle.grey, custom_id="decline")
 
-            illegal = False
+        async def button_callback(interaction):
+            response = interaction.data["custom_id"]
 
-            for square in all_squares:
-                if interaction.component.custom_id == square:
-                    if board[all_squares.index(square)] == "☐":
-                        board = ChangeBoard(board, square, "✚")
-                    else:
-                        illegal = True
-                        break
-                    await output.edit(content="Noughts and Crosses", components=BuildBoard(board))
-                    try:
-                        await interaction.respond()
-                    except discord.errors.HTTPException:
-                        pass
-                    break
-            if illegal:
-                continue
-            if HasWon(board, "✚"):
+            if response == "decline":
+                decline_button.style = discord.ButtonStyle.red
+                await interaction.response.edit_message(view=View().add_item(accept_button).add_item(decline_button))
+                await message.channel.send(client.get_user(opponent).mention + " **declined** the match!")
+                return
+            accept_button.style = discord.ButtonStyle.green
+            await interaction.response.edit_message(view=View().add_item(accept_button).add_item(decline_button))
+            players = [message.author, client.get_user(opponent)]
+            random.shuffle(players)
+            top_of_msg = client.get_user(opponent).mention + " **accepted** the match!\n" + \
+                players[0].mention + " It's your turn first!\n\n\n"
+
+        accept_button.callback = button_callback
+        decline_button.callback = button_callback
+
+        challenge = await message.channel.send(
+            client.get_user(opponent).mention +
+            " You have been challenged to noughts and crosses by **" + message.author.name + "**" +
+            (("\nBy accepting, you are risking `" + str(bet) + "` points...\nA win will give you `" +
+              str(bet) + "` points from your opponent!") if bet != 0 else ""),
+            view=View().add_item(accept_button).add_item(decline_button))
+
+
+
+    #         all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
+    #         board = ["☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐"]
+    #
+    #         output = await message.channel.send(
+    #             top_of_msg + players[1].mention + " VS " + players[2].mention, components=ox_get_board_view(board))
+    #         finished_game = False
+    #
+    #         def check(res):
+    #             return res.message == output and res.author == players[turn]
+    #
+    #         while not finished_game:
+    #
+    #             turn, play_symbol = ox_turn(board)
+    #
+    #             interaction = await client.wait_for("button_click", check=check)
+    #
+    #             pass
+    #
+    #             illegal = False
+    #
+    #             for square in all_squares:
+    #                 if interaction.component.custom_id == square:
+    #                     if board[all_squares.index(square)] == "☐":
+    #                         board = ox_change_board(board, square, play_symbol)
+    #                     else:
+    #                         illegal = True
+    #                         break
+    #                     top_of_msg = client.get_user(opponent).mention + \
+    #                         " **accepted** the match!\n" + players[ox_turn(board)[0]].mention + \
+    #                         " __It's your turn now!__\n\n\n"
+    #
+    #                     await output.edit(
+    #                         top_of_msg + players[1].mention + " VS " + players[2].mention, components=ox_get_board_view(board))
+    #                     try:
+    #                         await interaction.respond()
+    #                     except discord.errors.HTTPException:
+    #                         pass
+    #                     break
+    #             if illegal:
+    #                 continue
+    #             if ox_has_won(board, "✚"):
+    #                 await output.edit(
+    #                     "🥳__" + players[1].mention + "__🥳 VS 😢" + players[2].mention + "😢",
+    #                     components=ox_get_board_view(board)
+    #                 )
+    #                 await message.channel.send(
+    #                     ">>> __**" + players[1].mention + "YOU WIN!!! 🥳🥳🥳 **__\n**" +
+    #                     players[1].mention + "you get " + str(bet) + " points!**\n**" +
+    #                     players[2].mention + "you *lose* " + str(bet) + " points!**")
+    #                 await give_points(players[1].id, bet, "O&X - Won 1v1 against " +
+    #                                   str(players[2]) + " (" + str(players[2].id) + ")")
+    #                 await give_points(players[2].id, 0 - bet, "O&X - Lost 1v1 to " +
+    #                                   str(players[1]) + " (" + str(players[1].id) + ")")
+    #                 return
+    #             elif ox_has_won(board, "◉"):
+    #                 await output.edit(
+    #                     "😢" + players[1].mention + "😢 VS 🥳__" + players[2].mention + "__🥳",
+    #                     components=ox_get_board_view(board)
+    #                 )
+    #                 await message.channel.send(
+    #                     ">>> __**" + players[2].mention + "YOU WIN!!!**__ 🥳🥳🥳\n\n\n**" +
+    #                     players[2].mention + " you get " + str(bet) + " points!**\n**" +
+    #                     players[1].mention + " you *lose* " + str(bet) + " points!**")
+    #                 await give_points(players[2].id, bet, "O&X - Won 1v1 against " +
+    #                                   str(players[1]) + " (" + str(players[1].id) + ")")
+    #                 await give_points(players[1].id, 0 - bet, "O&X - Lost 1v1 to " +
+    #                                   str(players[2]) + " (" + str(players[2].id) + ")")
+    #                 return
+    #             elif "☐" not in board:
+    #                 finished_game = True
+    #                 await message.channel.send(
+    #                     ">>> __**" + players[1].mention + " and " + players[2].mention +
+    #                     "\nYour game ended in a draw!**__\nNo points have been changed")
+
+
+async def ox_secondary(message, board, output):
+    all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
+
+    async def button_callback(interaction):
+        nonlocal board
+
+        square = interaction.data["custom_id"]
+
+        if board[all_squares.index(square)] == "☐":
+            board = ox_change_board(board, square, "X")
+            await interaction.response.edit_message(content="Noughts and Crosses", view=ox_get_board_view(board))
+            if ox_has_won(board, "X"):
                 await message.channel.send(
                     ">>> __**YOU WIN!!! 🥳🥳🥳 **__\n**" + message.author.mention +
                     " You Beat Mr Keprins!!!**\n**You get 8 points!**")
                 await give_points(message.author.id, 8, "O&X - Beat Keprins")
                 return
-            elif "☐" not in board:
-                finished_game = True
+            if "☐" not in board:
                 await message.channel.send(
                     ">>> __**" + message.author.mention + " Your game ended in a draw!**__")
-            else:
-                if board.count("☐") == 8:
-                    if board[0] == "✚" or board[2] == "✚" or board[6] == "✚" or board[8] == "✚":
-                        if randint(1, 5) != 5:
-                            board[4] = "◉"
-                        else:
-                            if randint(1, 2) == 1:
-                                which = randint(1, 3)
-                                if which == 1:
-                                    if board[0] == "✚":
-                                        board[2] = "◉"
-                                    else:
-                                        board[0] = "◉"
-                                elif which == 2:
-                                    if board[2] == "✚":
-                                        board[6] = "◉"
-                                    else:
-                                        board[2] = "◉"
-                                elif which == 3:
-                                    if board[6] == "✚":
-                                        board[8] = "◉"
-                                    else:
-                                        board[6] = "◉"
-                            else:
-                                which = randint(1, 4)
-                                if which == 1:
-                                    board[1] = "◉"
-                                elif which == 2:
-                                    board[3] = "◉"
-                                elif which == 3:
-                                    board[5] = "◉"
-                                elif which == 4:
-                                    board[7] = "◉"
-                    elif board[4] == "✚" or board[1] == "✚" or board[3] == "✚" or board[5] == "✚" or board[7] == "✚":
-                        if randint(1, 4) == 4:
-                            which = randint(1, 4)
-                            if which == 1:
-                                board[1] = "◉"
-                            elif which == 2:
-                                board[3] = "◉"
-                            elif which == 3:
-                                board[5] = "◉"
-                            elif which == 4:
-                                board[7] = "◉"
-                        else:
-                            which = randint(1, 4)
-                            if which == 1:
-                                board[0] = "◉"
-                            elif which == 2:
-                                board[2] = "◉"
-                            elif which == 3:
-                                board[6] = "◉"
-                            elif which == 4:
-                                board[8] = "◉"
-                else:
-                    sequences = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-                    changed = False
-                    for sequence in sequences:
-                        if WinCheck(board, sequence[0], sequence[1], sequence[2], "◉") is not None:
-                            changed = True
-                            break
-                    if not changed:
-                        for sequence in sequences:
-                            if WinCheck(board, sequence[0], sequence[1], sequence[2], "✚") is not None:
-                                changed = True
-                                break
-                        if not changed:
-                            vacant = []
-                            for i in range(len(board)):
-                                if board[i] == "☐":
-                                    vacant.append(i)
-                            board[vacant[randint(0, len(vacant) - 1)]] = "◉"
-                await output.edit(content="Noughts and Crosses", components=BuildBoard(board))
-
-                if HasWon(board, "◉"):
-                    await message.channel.send(
-                        ">>> **" + message.author.mention + " __YOU LOST!!!__ 😭😭😭**\n**You lose 4 points!**")
-                    await give_points(message.author.id, -4, "O&X - Lost to Keprins")
-                    if int(data["users"][str(message.author.id)][0]) < 0:
-                        data["users"][str(message.author.id)][0] = "0"
-                        await update_points("Set " + str(message.author) + " points to 0, because were negative (o&x)")
-                    return
-                elif "☐" not in board:
-                    await message.channel.send(
-                        ">>> __**" + message.author.mention + " Your game ended in a draw!**__")
-                    return
-    elif message.content.lower()[:3] in acceptable and message.content[3] == " ":
-        await message.channel.send("`" + message.content + "`")
-        opponent = int(message.content[message.content.find(" ") + 1:
-                                       message.content.find(" ", message.content.find(" ") + 1)][3:-1])
-        bet = message.content[message.content.find(" ", message.content.find(" ") + 1):]
-        if bet == "all":
-            bet = int(data["users"][str(message.author.id)][0])
-        elif not bet.strip().isdigit():
-            await message.channel.send("Your bet needs to be an integer")
-            return
-        else:
-            bet = int(bet)
-        if len(str(opponent)) != 18:
-            await message.channel.send("Your opponent needs to exist and be in this server")
-        elif message.guild.get_member(opponent) is None:
-            await message.channel.send("Your opponent needs to exist and be in this server")
-        elif bet > int(data["users"][str(message.author.id)][0]):
-            await message.channel.send("You can't bet more points than you have!")
-        elif bet > int(data["users"][str(opponent)][0]):
-            await message.channel.send("You can't bet more points than your opponent has!")
-        elif bet <= 0:
-            await message.channel.send("You can't bet nothing! HAHA!")
-        else:
-            challenge = await message.channel.send(
-                client.get_user(opponent).mention + " You have been challenged to noughts and crosses by **" +
-                message.author.name + "**\nBy accepting, you are risking `" + str(bet) +
-                "` points...\nA win will give you `" + str(bet) + "` points from your opponent!", components=[[
-                    Button("Accept", "accept"),
-                    Button("Decline", "decline")]])
-
-            def check(res):
-                return res.message == challenge and res.author.id == opponent
-
-            players = {1: None, 2: None}
-            interaction = await client.wait_for("button_click", check=check)
-            if interaction.component.custom_id == "decline":
-                await challenge.edit(
-                    client.get_user(opponent).mention + " You have been challenged to noughts and crosses by **" +
-                    message.author.name + "**\nBy accepting, you are risking `" + str(bet) +
-                    "` points...\nA win will give you `" + str(bet) + "` points from your opponent!", components=[[
-                        Button("Accept", "accept"),
-                        Button("Decline", "decline", color="red")]])
-                await message.channel.send(client.get_user(opponent).mention + " **declined** the match!")
-                try:
-                    await interaction.respond()
-                except discord.errors.HTTPException:
-                    pass
                 return
-            elif interaction.component.custom_id == "accept":
-                await challenge.edit(
-                    client.get_user(opponent).mention + " You have been challenged to noughts and crosses by **" +
-                    message.author.name + "**\nBy accepting, you are risking `" + str(bet) +
-                    "` points...\nA win will give you `" + str(bet) + "` points from your opponent!", components=[[
-                        Button("Accept", "accept", color="green"),
-                        Button("Decline", "decline")]])
-                try:
-                    await interaction.respond()
-                except discord.errors.HTTPException:
-                    pass
-                player_list = [message.author, client.get_user(opponent)]
-                ran_num = randint(0, 1)
-                players[1] = player_list[ran_num]
-                players[2] = player_list[0]
-                if players[1] == players[2]:
-                    players[2] = player_list[1]
-                top_of_msg = client.get_user(opponent).mention + \
-                    " **accepted** the match!\n" + players[1].mention + " It's your turn first!\n\n\n"
-            else:
-                return
-            all_squares = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3"]
-            board = ["☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐", "☐"]
-
-            output = await message.channel.send(
-                top_of_msg + players[1].mention + " VS " + players[2].mention, components=BuildBoard(board))
-            finished_game = False
-
-            def check(res):
-                return res.message == output and res.author == players[turn]
-
-            while not finished_game:
-
-                turn, play_symbol = Turn(board)
-
-                interaction = await client.wait_for("button_click", check=check)
-
-                pass
-
-                illegal = False
-
-                for square in all_squares:
-                    if interaction.component.custom_id == square:
-                        if board[all_squares.index(square)] == "☐":
-                            board = ChangeBoard(board, square, play_symbol)
+            if board.count("☐") == 8:
+                if board[0] == "X" or board[2] == "X" or board[6] == "X" or board[8] == "X":
+                    if randint(1, 5) != 5:
+                        board[4] = "O"
+                    else:
+                        if randint(1, 2) == 1:
+                            which = randint(1, 3)
+                            if which == 1:
+                                if board[0] == "X":
+                                    board[2] = "O"
+                                else:
+                                    board[0] = "O"
+                            elif which == 2:
+                                if board[2] == "X":
+                                    board[6] = "O"
+                                else:
+                                    board[2] = "O"
+                            elif which == 3:
+                                if board[6] == "X":
+                                    board[8] = "O"
+                                else:
+                                    board[6] = "O"
                         else:
-                            illegal = True
-                            break
-                        top_of_msg = client.get_user(opponent).mention + \
-                            " **accepted** the match!\n" + players[Turn(board)[0]].mention + \
-                            " __It's your turn now!__\n\n\n"
-
-                        await output.edit(
-                            top_of_msg + players[1].mention + " VS " + players[2].mention, components=BuildBoard(board))
-                        try:
-                            await interaction.respond()
-                        except discord.errors.HTTPException:
-                            pass
+                            board[[1, 3, 5, 7][randint(0, 3)]] = "O"
+                elif board[4] == "X" or board[1] == "X" or board[3] == "X" or board[5] == "X" or board[7] == "X":
+                    if randint(1, 4) == 4:
+                        board[[1, 3, 5, 7][randint(0, 3)]] = "O"
+                    else:
+                        board[[0, 2, 6, 8][randint(0, 3)]] = "O"
+            else:
+                sequences = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
+                win_blocked = False
+                for sequence in sequences:
+                    if ox_block_win(board, sequence[0], sequence[1], sequence[2], "O") is not None:
+                        win_blocked = True
                         break
-                if illegal:
-                    continue
-                if HasWon(board, "✚"):
-                    await output.edit(
-                        "🥳__" + players[1].mention + "__🥳 VS 😢" + players[2].mention + "😢",
-                        components=BuildBoard(board)
-                    )
-                    await message.channel.send(
-                        ">>> __**" + players[1].mention + "YOU WIN!!! 🥳🥳🥳 **__\n**" +
-                        players[1].mention + "you get " + str(bet) + " points!**\n**" +
-                        players[2].mention + "you *lose* " + str(bet) + " points!**")
-                    await give_points(players[1].id, bet, "O&X - Won 1v1 against " +
-                                      str(players[2]) + " (" + str(players[2].id) + ")")
-                    await give_points(players[2].id, 0 - bet, "O&X - Lost 1v1 to " +
-                                      str(players[1]) + " (" + str(players[1].id) + ")")
-                    return
-                elif HasWon(board, "◉"):
-                    await output.edit(
-                        "😢" + players[1].mention + "😢 VS 🥳__" + players[2].mention + "__🥳",
-                        components=BuildBoard(board)
-                    )
-                    await message.channel.send(
-                        ">>> __**" + players[2].mention + "YOU WIN!!!**__ 🥳🥳🥳\n\n\n**" +
-                        players[2].mention + " you get " + str(bet) + " points!**\n**" +
-                        players[1].mention + " you *lose* " + str(bet) + " points!**")
-                    await give_points(players[2].id, bet, "O&X - Won 1v1 against " +
-                                      str(players[1]) + " (" + str(players[1].id) + ")")
-                    await give_points(players[1].id, 0 - bet, "O&X - Lost 1v1 to " +
-                                      str(players[2]) + " (" + str(players[2].id) + ")")
-                    return
-                elif "☐" not in board:
-                    finished_game = True
-                    await message.channel.send(
-                        ">>> __**" + players[1].mention + " and " + players[2].mention +
-                        "\nYour game ended in a draw!**__\nNo points have been changed")
+                if not win_blocked:
+                    for sequence in sequences:
+                        if ox_block_win(board, sequence[0], sequence[1], sequence[2], "X") is not None:
+                            win_blocked = True
+                            break
+                    if not win_blocked:
+                        vacant = []
+                        for i in range(len(board)):
+                            if board[i] == "☐":
+                                vacant.append(i)
+                        board[vacant[randint(0, len(vacant) - 1)]] = "O"
+            await output.edit(content="Noughts and Crosses", view=ox_get_board_view(board))
+
+            if ox_has_won(board, "O"):
+                await message.channel.send(
+                    ">>> **" + message.author.mention + " __YOU LOST!!!__ 😭😭😭**\n**You lose 4 points!**")
+                await give_points(message.author.id, -4, "O&X - Lost to Keprins")
+                if int(data["users"][str(message.author.id)][0]) < 0:
+                    data["users"][str(message.author.id)][0] = "0"
+                    await update_points("Set " + str(message.author) + " points to 0, because were negative (o&x)")
+                return
+            elif "☐" not in board:
+                await message.channel.send(
+                    ">>> __**" + message.author.mention + " Your game ended in a draw!**__")
+                return
+            await ox_secondary(message, board, output)
+
+    board_view = ox_get_board_view(board)
+    for button in board_view.children:
+        button.callback = button_callback
+    await output.edit(content="Noughts and Crosses", view=board_view)
+
+
+async def ox_multiplayer(message):
+    pass
 
 
 async def Bitcoin(message):
-    if message.content.lower() == "bitcoin":
+    if message.content.lower() in ["bitcoin", "btc"]:
         aud = BtcConverter().get_latest_price('AUD')
-        await message.channel.send("> **ONE BITCOIN:**\n> ```" + str(aud) + " AUD```")
-    elif message.content.lower()[:8] == "bitcoin ":
-        currency = message.content[8:].upper()
+        await message.channel.send("> ** ONE BITCOIN:**\n> ```" + str(aud) + " AUD```")
+    elif message.content.lower().startswith("bitcoin ") or message.content.lower().startswith("btc "):
+        currency = message.content[message.content.find(" ") + 1:].upper()
         bit = BtcConverter().get_latest_price(currency)
-        await message.channel.send("> **ONE BITCOIN:**\n> ```" + str(bit) + " " + currency + "```")
+        await message.channel.send("> ** ONE BITCOIN:**\n> ```" + str(bit) + " " + currency + "```")
 
 
 async def Weather(message):
@@ -2136,7 +2053,7 @@ async def on_message(message):
         await msg.delete()
     add_server_to_temp_data(message)
     await manage_user_data_values(message.author.id)
-    await XP(message)
+    await give_xp(message)
     if message.content.lower().startswith("kp ") or message.content.lower().startswith("mr ") or \
             message.content.lower().startswith("mk "):
         message.content = message.content[3:]
@@ -2160,7 +2077,6 @@ async def on_message(message):
     await invite_me(message)
     await daily(message)
     await manage_points(message)
-    await vote(message)
     await special_events(message)
     await Bitcoin(message)
     await Weather(message)
@@ -2197,12 +2113,14 @@ async def on_message(message):
     await hangman(message)
     await donate(message)
     await feed(message)
-    await dank_memer(message)
-    await NoughtsAndCrosses(message)
+    await noughts_and_crosses(message)
     await ButterChicken(message)
     await Image(message)
     await Quiz(message)
     await Wordle(message)
 
 
-client.run("MTAwODM2MTQ0MzY0MjU4NTEzOA.Gsohyk.Smvl80G-cAjGItfZ7p-0U-vwcCbjyu_E2s15EM")
+try:
+    client.run("ODkwNTEyNDMyMTM1NTU3MTQx.YUw4VA.JO2zeCrsojWL2eOsYH8PUKBSneQ")
+except discord.errors.HTTPException:
+    os.system("kill 1")
