@@ -1,7 +1,7 @@
 # Mr Keprins Discord Bot
 import math
 import os
-# Version: 2.0
+# Version: Attempt to fix v1 and create v2 (failed)
 # Originally created: 23 September 2021, 4:31:55 PM
 # Creator: Cohen Beveridge
 
